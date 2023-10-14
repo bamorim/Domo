@@ -1,9 +1,9 @@
 defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
   @moduledoc false
 
+  alias Domo.TypeEnsurerFactory.Resolver.Fields.Arguments
   alias Domo.TypeEnsurerFactory.Precondition
   alias Domo.TypeEnsurerFactory.Alias
-  alias Domo.TypeEnsurerFactory.Resolver.Fields.Arguments
   alias Domo.TypeEnsurerFactory.ModuleInspector
   alias Domo.TermSerializer
 
@@ -567,8 +567,22 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
       args,
       module,
       resolving_context,
-      &drop_kv_precond/1,
-      &{quote(context: module, do: [unquote_splicing(&1)]), precond},
+      & &1,
+      &{quote(context: module, do: [unquote(&1)]), precond},
+      fn [types] ->
+        # Still need a way to combine preconditions.
+        without_preconds =
+          Enum.map(types, fn
+            {type, _precond} -> type
+            type -> type
+          end)
+
+        [
+          Enum.reduce(without_preconds, fn type, acc ->
+            {:|, [], [acc, type]}
+          end)
+        ]
+      end,
       acc
     )
   end
@@ -773,7 +787,7 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     {[joint_type | types], errs, deps}
   end
 
-  defp combine_or_args(args, module, resolving_context, map_resolved_fn, quote_fn, {types, errs, deps}) do
+  defp combine_or_args(args, module, resolving_context, map_resolved_fn, quote_fn, combine_fn \\ &Arguments.all_combinations/1, {types, errs, deps}) do
     {args_resolved, errs_resolved, deps_resolved} =
       args
       |> Enum.map(&resolve_type(&1, module, nil, resolving_context, {[], [], []}))
@@ -801,8 +815,8 @@ defmodule Domo.TypeEnsurerFactory.Resolver.Fields do
     else
       combined_types =
         args_resolved
-        |> Arguments.all_combinations()
-        |> Enum.map(&quote_fn.(&1))
+        |> combine_fn.()
+        |> Enum.map(quote_fn)
 
       {
         combined_types ++ types,

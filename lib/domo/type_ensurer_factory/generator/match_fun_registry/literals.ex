@@ -56,10 +56,21 @@ defmodule Domo.TypeEnsurerFactory.Generator.MatchFunRegistry.Literals do
 
   # credo:disable-for-lines:91
   defp guard_quoted(type_spec, variable_name, context \\ __MODULE__) when is_atom(variable_name) do
-    type_spec = Macro.update_meta(type_spec, fn _ -> [] end)
     variable_name = Macro.var(variable_name, context)
+    do_guard_quoted(type_spec, variable_name)
+  end
+
+  defp do_guard_quoted(type_spec, variable_name) do
+    type_spec = Macro.update_meta(type_spec, fn _ -> [] end)
 
     case type_spec do
+      {:|, [], args} ->
+        guards = Enum.map(args, &do_guard_quoted(&1, variable_name))
+
+        Enum.reduce(guards, fn guard, result ->
+          quote(do: unquote(guard) or unquote(result))
+        end)
+
       {:atom, [], []} ->
         quote(do: is_atom(unquote(variable_name)))
 

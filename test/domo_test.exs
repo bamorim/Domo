@@ -1106,6 +1106,13 @@ a true value from the precondition.*defined for Account.t\(\) type./s, fn ->
       DomoMixTask.start_plan_collection([])
       assert {:ok, []} = DomoMixTask.process_plan({:ok, []}, [])
     end
+
+    test "properly validate array of union types" do
+      assert {:ok, _} = ListOfUnions.new(values: [1, "2"])
+      assert {:error, _} = ListOfUnions.new(values: [1, "2", :other])
+      assert {:error, _} = ListOfUnions.new(values: :not_list)
+      assert {:error, _} = ListOfUnions.new(values: [1, ""])
+    end
   end
 
   describe "Domo library error messages should" do
